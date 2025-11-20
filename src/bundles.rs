@@ -1,7 +1,7 @@
 use bevy::{
+    camera::visibility::{InheritedVisibility, ViewVisibility, Visibility},
     ecs::bundle::Bundle,
     prelude::default,
-    render::view::{InheritedVisibility, ViewVisibility, Visibility},
     transform::components::{GlobalTransform, Transform},
     ui::{ComputedNode, Node, ZIndex},
 };

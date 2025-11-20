@@ -3,14 +3,14 @@ use std::sync::Arc;
 use bevy::{
     ecs::{
         entity::Entity,
-        event::EventWriter,
+        message::MessageWriter,
         query::With,
         system::{Query, Res},
         world::World,
     },
     input::{mouse::MouseButton, touch::Touches, ButtonInput},
     math::{Rect, Vec2, Vec3Swizzles},
-    prelude::Children,
+    prelude::{info, Children},
     transform::components::GlobalTransform,
     ui::{ComputedNode, Node, PositionType, Val},
     window::{PrimaryWindow, Window},
@@ -149,6 +149,7 @@ pub fn update_behavior_knob_delta<S: VirtualJoystickID>(world: &mut World) {
     let mut joysticks = world.query::<(Entity, &VirtualJoystickNode<S>)>();
     let mut joystick_entities: Vec<Entity> = Vec::new();
     for (joystick_entity, _) in joysticks.iter(world) {
+        info!("joystick entity: {:?}", &joystick_entity);
         joystick_entities.push(joystick_entity);
     }
     for joystick_entity in joystick_entities {
@@ -264,7 +265,7 @@ pub fn update_action<S: VirtualJoystickID>(world: &mut World) {
 
 pub fn update_fire_events<S: VirtualJoystickID>(
     joysticks: Query<(&VirtualJoystickNode<S>, &VirtualJoystickState)>,
-    mut send_values: EventWriter<VirtualJoystickEvent<S>>,
+    mut send_values: MessageWriter<VirtualJoystickEvent<S>>,
 ) {
     for (joystick, joystick_state) in &joysticks {
         if joystick_state.just_released {

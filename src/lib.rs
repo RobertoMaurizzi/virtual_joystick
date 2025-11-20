@@ -43,7 +43,7 @@ pub struct VirtualJoystickPlugin<S> {
     _marker: PhantomData<S>,
 }
 
-#[derive(Event)]
+#[derive(Event, Message)]
 pub enum InputEvent {
     StartDrag { id: u64, pos: Vec2, is_mouse: bool },
     Dragging { id: u64, pos: Vec2, is_mouse: bool },
@@ -76,8 +76,8 @@ impl<S: VirtualJoystickID + GetTypeRegistration + bevy::reflect::Typed> Plugin
     fn build(&self, app: &mut bevy::prelude::App) {
         app.register_type::<VirtualJoystickNode<S>>()
             .register_type::<VirtualJoystickEventType>()
-            .add_event::<VirtualJoystickEvent<S>>()
-            .add_event::<InputEvent>()
+            .add_message::<VirtualJoystickEvent<S>>()
+            .add_message::<InputEvent>()
             .add_systems(
                 PreUpdate,
                 (
@@ -109,7 +109,7 @@ pub enum VirtualJoystickEventType {
     Up,
 }
 
-#[derive(Event, Debug)]
+#[derive(Event, Message, Debug)]
 pub struct VirtualJoystickEvent<S: VirtualJoystickID> {
     id: S,
     event: VirtualJoystickEventType,

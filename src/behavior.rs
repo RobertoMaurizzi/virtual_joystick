@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use bevy::{
+    camera::visibility::Visibility,
     ecs::{entity::Entity, world::World},
     math::{Rect, Vec2, Vec3Swizzles},
-    prelude::Children,
+    prelude::{info, Children},
     reflect::Reflect,
-    render::view::Visibility,
     transform::components::GlobalTransform,
     ui::ComputedNode,
 };
@@ -21,12 +21,15 @@ pub trait VirtualJoystickBehavior: Send + Sync + 'static {
 
 impl<A: VirtualJoystickBehavior + Clone> VirtualJoystickBehavior for Arc<A> {
     fn update_at_delta_stage(&self, world: &mut World, entity: Entity) {
+        info!("joy delta entity: {:?}", entity);
         (**self).update_at_delta_stage(world, entity);
     }
     fn update_at_constraint_stage(&self, world: &mut World, entity: Entity) {
+        info!("joy constraint entity: {:?}", entity);
         (**self).update_at_constraint_stage(world, entity);
     }
     fn update(&self, world: &mut World, entity: Entity) {
+        info!("joy update entity: {:?}", entity);
         (**self).update(world, entity);
     }
 }
@@ -138,11 +141,13 @@ impl VirtualJoystickBehavior for JoystickFixed {
         let Some(children) = world.get::<Children>(entity) else {
             return;
         };
+        info!("JoysticFixed {:?}", &entity);
 
         for &child in children.iter() {
             if world.get::<VirtualJoystickUIBackground>(child).is_none() {
                 continue;
             }
+            info!("JoysticFixed child: {:?}", &child);
             let Some(joystick_base_node) = world.get::<ComputedNode>(child) else {
                 continue;
             };
