@@ -149,7 +149,6 @@ pub fn update_behavior_knob_delta<S: VirtualJoystickID>(world: &mut World) {
     let mut joysticks = world.query::<(Entity, &VirtualJoystickNode<S>)>();
     let mut joystick_entities: Vec<Entity> = Vec::new();
     for (joystick_entity, _) in joysticks.iter(world) {
-        info!("joystick entity: {:?}", &joystick_entity);
         joystick_entities.push(joystick_entity);
     }
     for joystick_entity in joystick_entities {
