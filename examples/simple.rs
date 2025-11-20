@@ -6,9 +6,7 @@ use virtual_joystick::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(EguiPlugin {
-            enable_multipass_for_primary_context: true,
-        })
+        .add_plugins(EguiPlugin::default())
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(VirtualJoystickPlugin::<String>::default())
         .add_systems(Startup, create_scene)
@@ -56,7 +54,7 @@ fn create_scene(mut cmd: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn update_joystick(
-    mut joystick: EventReader<VirtualJoystickEvent<String>>,
+    mut joystick: MessageReader<VirtualJoystickEvent<String>>,
     mut player: Query<(&mut Transform, &Player)>,
     time_step: Res<Time>,
 ) {
