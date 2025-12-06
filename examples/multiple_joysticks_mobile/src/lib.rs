@@ -94,7 +94,7 @@ fn create_scene(mut cmd: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn update_joystick(
-    mut joystick: EventReader<VirtualJoystickEvent<JoystickController>>,
+    mut joystick: MessageReader<VirtualJoystickEvent<JoystickController>>,
     mut player: Query<(&mut Transform, &Player)>,
     time_step: Res<Time>,
 ) {

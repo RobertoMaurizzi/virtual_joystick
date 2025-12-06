@@ -8,6 +8,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(EguiPlugin {
             enable_multipass_for_primary_context: true,
+            ..default()
         })
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(VirtualJoystickPlugin::<String>::default())
@@ -33,10 +34,13 @@ impl VirtualJoystickAction<String> for TintAction {
         world: &mut World,
         entity: Entity,
     ) {
-        let children = world.get::<Children>(entity).iter().collect::<Vec<_>>();
+        let Some(children) = world.get::<Children>(entity) else {
+            return;
+        };
 
-        for child in children.iter() {
-            let Some(mut ui_image) = world.get_mut::<ImageNode>(*child) else {
+        let child_entities: Vec<Entity> = children.iter().collect();
+        for child in child_entities {
+            let Some(mut ui_image) = world.get_mut::<ImageNode>(child) else {
                 continue;
             };
             ui_image.color = self.down;
@@ -50,10 +54,13 @@ impl VirtualJoystickAction<String> for TintAction {
         world: &mut World,
         entity: Entity,
     ) {
-        let children = world.get::<Children>(entity).iter().collect::<Vec<_>>();
+        let Some(children) = world.get::<Children>(entity) else {
+            return;
+        };
 
-        for child in children.iter() {
-            let Some(mut ui_image) = world.get_mut::<ImageNode>(*child) else {
+        let child_entities: Vec<Entity> = children.iter().collect();
+        for child in child_entities {
+            let Some(mut ui_image) = world.get_mut::<ImageNode>(child) else {
                 continue;
             };
             ui_image.color = self.up;
@@ -103,7 +110,7 @@ fn create_scene(mut cmd: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn update_joystick(
-    mut joystick: EventReader<VirtualJoystickEvent<String>>,
+    mut joystick: MessageReader<VirtualJoystickEvent<String>>,
     mut player: Query<(&mut Transform, &Player)>,
     time_step: Res<Time>,
 ) {
