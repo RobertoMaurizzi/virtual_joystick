@@ -2,12 +2,13 @@ use std::sync::Arc;
 
 use bevy::{
     camera::visibility::Visibility,
-    ecs::{entity::Entity, world::World},
+    ecs::{entity::Entity, query::With, world::World},
     math::{Rect, Vec2, Vec3Swizzles},
-    prelude::{info, Children},
+    prelude::Children,
     reflect::Reflect,
     transform::components::GlobalTransform,
-    ui::ComputedNode,
+    ui::{ComputedNode, Node, Val},
+    window::{PrimaryWindow, Window},
 };
 use variadics_please::all_tuples;
 
@@ -21,15 +22,12 @@ pub trait VirtualJoystickBehavior: Send + Sync + 'static {
 
 impl<A: VirtualJoystickBehavior + Clone> VirtualJoystickBehavior for Arc<A> {
     fn update_at_delta_stage(&self, world: &mut World, entity: Entity) {
-        info!("joy delta entity: {:?}", entity);
         (**self).update_at_delta_stage(world, entity);
     }
     fn update_at_constraint_stage(&self, world: &mut World, entity: Entity) {
-        info!("joy constraint entity: {:?}", entity);
         (**self).update_at_constraint_stage(world, entity);
     }
     fn update(&self, world: &mut World, entity: Entity) {
-        info!("joy update entity: {:?}", entity);
         (**self).update(world, entity);
     }
 }
@@ -137,33 +135,95 @@ impl VirtualJoystickBehavior for JoystickInvisible {
 
 impl VirtualJoystickBehavior for JoystickFixed {
     fn update_at_delta_stage(&self, world: &mut World, entity: Entity) {
-        let mut joystick_base_rect: Option<Rect> = None;
+        // Get parent (joystick entity) transform and size
+        let Some(joystick_node) = world.get::<ComputedNode>(entity) else {
+            return;
+        };
+        let Some(joystick_global_transform) = world.get::<GlobalTransform>(entity) else {
+            return;
+        };
+        
+        let parent_size = joystick_node.size() * joystick_node.inverse_scale_factor;
+        let mut parent_center_screen = joystick_global_transform.translation().xy() * joystick_node.inverse_scale_factor;
+        
+        // If GlobalTransform shows (0,0), calculate from Node style positioning
+        if parent_center_screen.length() < 0.1 {
+            let parent_node_opt = world.get::<Node>(entity).cloned();
+            if let Some(parent_node) = parent_node_opt {
+                // Try to get window from world using query_filtered
+                let mut window_query = world.query_filtered::<&Window, With<PrimaryWindow>>();
+                if let Some(window) = window_query.iter(world).next() {
+                    let window_width = window.width();
+                    let window_height = window.height();
+                    let window_center_x = window_width * 0.5;
+                    let window_center_y = window_height * 0.5;
+                    
+                    // Calculate parent center in window coordinates from Node style
+                    let parent_center_x_window = match parent_node.left {
+                        Val::Px(p) => p + parent_size.x * 0.5,
+                        Val::Percent(p) => (window_width * p / 100.0) + parent_size.x * 0.5,
+                        Val::Auto => match parent_node.right {
+                            Val::Px(r) => window_width - r - parent_size.x * 0.5,
+                            Val::Percent(r) => window_width - (window_width * r / 100.0) - parent_size.x * 0.5,
+                            _ => window_center_x,
+                        },
+                        _ => window_center_x,
+                    };
+                    let parent_center_y_window = match parent_node.bottom {
+                        Val::Px(p) => window_height - p - parent_size.y * 0.5,
+                        Val::Percent(p) => window_height - (window_height * p / 100.0) - parent_size.y * 0.5,
+                        Val::Auto => match parent_node.top {
+                            Val::Px(t) => t + parent_size.y * 0.5,
+                            Val::Percent(t) => (window_height * t / 100.0) + parent_size.y * 0.5,
+                            _ => window_center_y,
+                        },
+                        _ => window_center_y,
+                    };
+                    
+                    // Convert to screen coordinates
+                    parent_center_screen = Vec2::new(
+                        parent_center_x_window - window_center_x,
+                        parent_center_y_window - window_center_y,
+                    );
+                }
+            }
+        }
+        
+        // Get base size from child's Node style (ComputedNode might not be available in PreUpdate)
+        let mut base_size = Vec2::new(150.0, 150.0); // Default
         let Some(children) = world.get::<Children>(entity) else {
             return;
         };
-        info!("JoysticFixed {:?}", &entity);
-
+        
         for &child in children.iter() {
             if world.get::<VirtualJoystickUIBackground>(child).is_none() {
                 continue;
             }
-            info!("JoysticFixed child: {:?}", &child);
-            let Some(joystick_base_node) = world.get::<ComputedNode>(child) else {
-                continue;
-            };
-            let Some(joystick_base_global_transform) = world.get::<GlobalTransform>(child) else {
-                continue;
-            };
-            let rect = Rect::from_center_size(
-                joystick_base_global_transform.translation().xy(),
-                joystick_base_node.size(),
-            );
-            joystick_base_rect = Some(rect);
+            // Try ComputedNode first (might be available in some cases)
+            if let Some(computed_node) = world.get::<ComputedNode>(child) {
+                base_size = computed_node.size() * computed_node.inverse_scale_factor;
+            } else if let Some(node) = world.get::<Node>(child) {
+                // Fallback to Node style
+                let width = match node.width {
+                    bevy::ui::Val::Px(w) => w,
+                    _ => 150.0,
+                };
+                let height = match node.height {
+                    bevy::ui::Val::Px(h) => h,
+                    _ => 150.0,
+                };
+                base_size = Vec2::new(width, height);
+            }
             break;
         }
-        let Some(joystick_base_rect) = joystick_base_rect else {
-            return;
-        };
+        
+        // For fixed joysticks, base is positioned at (0, 0) relative to parent (top-left)
+        // Parent top-left in screen coords = parent_center_screen - parent_size * 0.5
+        // Base center in screen coords = parent_top_left + base_size * 0.5
+        let parent_top_left_screen = parent_center_screen - parent_size * 0.5;
+        let base_center_screen = parent_top_left_screen + base_size * 0.5;
+        let joystick_base_rect = Rect::from_center_size(base_center_screen, base_size);
+        
         let Some(mut joystick_state) = world.get_mut::<VirtualJoystickState>(entity) else {
             return;
         };
@@ -193,32 +253,86 @@ impl VirtualJoystickBehavior for JoystickFixed {
 
 impl VirtualJoystickBehavior for JoystickFloating {
     fn update_at_delta_stage(&self, world: &mut World, entity: Entity) {
-        let mut joystick_base_rect: Option<Rect> = None;
+        // Get parent (joystick entity) transform and size
+        let Some(joystick_node) = world.get::<ComputedNode>(entity) else {
+            return;
+        };
+        let Some(joystick_global_transform) = world.get::<GlobalTransform>(entity) else {
+            return;
+        };
+        
+        // Get base size from child
+        let mut base_size = Vec2::new(150.0, 150.0); // Default
         let Some(children) = world.get::<Children>(entity) else {
             return;
         };
-
+        
         for &child in children.iter() {
-            if world.get::<VirtualJoystickUIBackground>(child).is_none() {
-                continue;
+            if world.get::<VirtualJoystickUIBackground>(child).is_some() {
+                // Try to get size from ComputedNode or Node
+                if let Some(computed_node) = world.get::<ComputedNode>(child) {
+                    base_size = computed_node.size() * computed_node.inverse_scale_factor;
+                } else if let Some(node) = world.get::<Node>(child) {
+                    let width = match node.width {
+                        bevy::ui::Val::Px(w) => w,
+                        _ => 150.0,
+                    };
+                    let height = match node.height {
+                        bevy::ui::Val::Px(h) => h,
+                        _ => 150.0,
+                    };
+                    base_size = Vec2::new(width, height);
+                }
+                break;
             }
-            let Some(joystick_base_node) = world.get::<ComputedNode>(child) else {
-                continue;
-            };
-            let Some(joystick_base_global_transform) = world.get::<GlobalTransform>(child) else {
-                continue;
-            };
-            let rect = Rect::from_center_size(
-                joystick_base_global_transform.translation().xy()
-                    * joystick_base_node.inverse_scale_factor(),
-                joystick_base_node.size() * joystick_base_node.inverse_scale_factor,
-            );
-            joystick_base_rect = Some(rect);
-            break;
         }
-        let Some(joystick_base_rect) = joystick_base_rect else {
-            return;
-        };
+        
+        let parent_size = joystick_node.size() * joystick_node.inverse_scale_factor;
+        let mut parent_center_screen = joystick_global_transform.translation().xy() * joystick_node.inverse_scale_factor;
+        
+        // If GlobalTransform shows (0,0), calculate from Node style positioning
+        if parent_center_screen.length() < 0.1 {
+            let parent_node_opt = world.get::<Node>(entity).cloned();
+            if let Some(parent_node) = parent_node_opt {
+                // Try to get window from world using query_filtered
+                let mut window_query = world.query_filtered::<&Window, With<PrimaryWindow>>();
+                if let Some(window) = window_query.iter(world).next() {
+                    let window_width = window.width();
+                    let window_height = window.height();
+                    let window_center_x = window_width * 0.5;
+                    let window_center_y = window_height * 0.5;
+                    
+                    // Calculate parent center in window coordinates from Node style
+                    let parent_center_x_window = match parent_node.left {
+                        Val::Px(p) => p + parent_size.x * 0.5,
+                        Val::Percent(p) => (window_width * p / 100.0) + parent_size.x * 0.5,
+                        Val::Auto => match parent_node.right {
+                            Val::Px(r) => window_width - r - parent_size.x * 0.5,
+                            Val::Percent(r) => window_width - (window_width * r / 100.0) - parent_size.x * 0.5,
+                            _ => window_center_x,
+                        },
+                        _ => window_center_x,
+                    };
+                    let parent_center_y_window = match parent_node.bottom {
+                        Val::Px(p) => window_height - p - parent_size.y * 0.5,
+                        Val::Percent(p) => window_height - (window_height * p / 100.0) - parent_size.y * 0.5,
+                        Val::Auto => match parent_node.top {
+                            Val::Px(t) => t + parent_size.y * 0.5,
+                            Val::Percent(t) => (window_height * t / 100.0) + parent_size.y * 0.5,
+                            _ => window_center_y,
+                        },
+                        _ => window_center_y,
+                    };
+                    
+                    // Convert to screen coordinates
+                    parent_center_screen = Vec2::new(
+                        parent_center_x_window - window_center_x,
+                        parent_center_y_window - window_center_y,
+                    );
+                }
+            }
+        }
+        
         let Some(mut joystick_state) = world.get_mut::<VirtualJoystickState>(entity) else {
             return;
         };
@@ -229,15 +343,18 @@ impl VirtualJoystickBehavior for JoystickFloating {
 
         if let Some(touch_state) = &joystick_state.touch_state {
             if touch_state.just_pressed {
-                base_offset = touch_state.start - joystick_base_rect.center();
+                // Calculate base_offset: offset from parent center to touch start
+                base_offset = touch_state.start - parent_center_screen;
                 assign_base_offset = true;
                 is_just_pressed = true;
             } else {
                 base_offset = joystick_state.base_offset;
             }
         } else if joystick_state.just_released {
-            base_offset = Vec2::ZERO;
-            assign_base_offset = true;
+            // For floating joystick, keep base_offset where it is (don't reset to zero)
+            // Only reset if explicitly needed
+            base_offset = joystick_state.base_offset;
+            // Don't assign - keep it where it was
         } else {
             base_offset = joystick_state.base_offset;
         }
@@ -246,13 +363,18 @@ impl VirtualJoystickBehavior for JoystickFloating {
             joystick_state.base_offset = base_offset;
         }
 
+        // Calculate base center from parent center + base_offset
+        let base_center_screen = parent_center_screen + base_offset;
+        let base_half_size = base_size * 0.5;
+        let joystick_base_rect = Rect::from_center_size(base_center_screen, base_size);
+
         let new_delta: Vec2;
 
         if is_just_pressed {
             new_delta = Vec2::ZERO;
         } else if let Some(touch_state) = &joystick_state.touch_state {
-            let mut offset = touch_state.current - joystick_base_rect.center();
-            let max_distance = joystick_base_rect.half_size().x;
+            let mut offset = touch_state.current - base_center_screen;
+            let max_distance = base_half_size.x;
             let distance_squared = offset.length_squared();
 
             if distance_squared > max_distance * max_distance {

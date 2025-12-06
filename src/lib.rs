@@ -82,7 +82,7 @@ impl<S: VirtualJoystickID + GetTypeRegistration + bevy::reflect::Typed> Plugin
                 PreUpdate,
                 (
                     update_missing_state::<S>,
-                    update_input.after(update_missing_state::<S>),
+                    update_input::<S>.after(update_missing_state::<S>),
                 ),
             )
             .add_systems(UpdateKnobDelta, update_behavior_knob_delta::<S>)
