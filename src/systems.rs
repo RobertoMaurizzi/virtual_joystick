@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use bevy::{
+    camera::visibility::Visibility,
     ecs::{
         entity::Entity,
         message::MessageWriter,
@@ -418,7 +419,7 @@ pub fn update_fire_events<S: VirtualJoystickID>(
 
 #[allow(clippy::complexity)]
 pub fn update_ui(
-    joysticks: Query<(&VirtualJoystickState, &Children, &ComputedNode, &GlobalTransform)>,
+    joysticks: Query<(&VirtualJoystickState, &Children, &ComputedNode, &GlobalTransform, Option<&Visibility>)>,
     mut joystick_bases: Query<&mut Node, With<VirtualJoystickUIBackground>>,
     mut joystick_knobs: Query<
         &mut Node,
@@ -430,7 +431,14 @@ pub fn update_ui(
     base_nodes: Query<&ComputedNode, With<VirtualJoystickUIBackground>>,
     knob_nodes: Query<&ComputedNode, (With<VirtualJoystickUIKnob>, Without<VirtualJoystickUIBackground>)>,
 ) {
-    for (joystick_state, children, joystick_node, joystick_global_transform) in &joysticks {
+    for (joystick_state, children, joystick_node, joystick_global_transform, visibility) in &joysticks {
+        // Skip positioning if joystick is hidden (but still update if it's visible or inherited)
+        // However, if there's a touch_state, we should position even if visibility check fails
+        // (this handles the case where joystick just became visible but ComputedNode isn't ready yet)
+        let is_hidden = visibility.map(|v| *v == Visibility::Hidden).unwrap_or(false);
+        if is_hidden && joystick_state.touch_state.is_none() {
+            continue;
+        }
         let mut joystick_base_rect: Option<Rect> = None;
         // Get parent size in screen coordinates
         let parent_size = joystick_node.size() * joystick_node.inverse_scale_factor;

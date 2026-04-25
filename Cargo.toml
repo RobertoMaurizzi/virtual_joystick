@@ -28,23 +28,35 @@ required-features = ["inspect"]
 name = "tint"
 required-features = ["inspect"]
 
+[[example]]
+name = "digital8"
+required-features = ["inspect"]
+
+[[example]]
+name = "joystick_throttle"
+required-features = ["inspect"]
+
+[[example]]
+name = "joystick_cooldown"
+required-features = ["inspect"]
+
 [features]
 default = ["serde"]
 inspect = ["bevy-inspector-egui"]
 serde = ["dep:serde"]
 
 [dependencies]
-bevy = { version = "0.17", default-features = false, features = [
+bevy = { version = "0.18", default-features = false, features = [
   "bevy_render",
   "bevy_ui",
   "bevy_window",
 ] }
 variadics_please = "1.1"
-bevy-inspector-egui = { version = "0.35", default-features = false, features = [
+bevy-inspector-egui = { version = "0.36", default-features = false, features = [
   "bevy_image",
   "bevy_render",
 ], optional = true }
 serde = { version = "^1", features = ["derive"], optional = true }
 
 [dev-dependencies]
-bevy = "0.17"
+bevy = "0.18"

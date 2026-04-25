@@ -13,8 +13,8 @@ mod utils;
 
 pub use action::{NoAction, VirtualJoystickAction};
 pub use behavior::{
-    JoystickDeadZone, JoystickDynamic, JoystickFixed, JoystickFloating, JoystickHorizontalOnly,
-    JoystickInvisible, JoystickVerticalOnly, VirtualJoystickBehavior,
+    JoystickDeadZone, JoystickDigital8, JoystickDynamic, JoystickFixed, JoystickFloating,
+    JoystickHorizontalOnly, JoystickInvisible, JoystickVerticalOnly, VirtualJoystickBehavior,
 };
 pub use bundles::VirtualJoystickBundle;
 pub use components::{
