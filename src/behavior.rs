@@ -78,6 +78,9 @@ pub struct JoystickFloating;
 #[derive(Clone, Copy, Debug, Default, Reflect)]
 pub struct JoystickDynamic;
 
+#[derive(Clone, Copy, Debug, Default, Reflect)]
+pub struct JoystickDigital8;
+
 impl VirtualJoystickBehavior for JoystickDeadZone {
     fn update_at_constraint_stage(&self, world: &mut World, entity: Entity) {
         let Some(mut joystick_state) = world.get_mut::<VirtualJoystickState>(entity) else {
@@ -290,4 +293,26 @@ fn base_offset_delta(rect: Rect, offset: Vec2) -> Option<Vec2> {
     let distance = distance_squared.sqrt();
     let offset = offset * half_size_x / distance;
     Some(offset * (1. - half_size_x / distance))
+}
+
+impl VirtualJoystickBehavior for JoystickDigital8 {
+    fn update_at_constraint_stage(&self, world: &mut World, entity: Entity) {
+        let Some(mut joystick_state) = world.get_mut::<VirtualJoystickState>(entity) else {
+            return;
+        };
+
+        let delta = joystick_state.delta;
+        let magnitude = delta.length();
+
+        if magnitude < 0.1 {
+            joystick_state.delta = Vec2::ZERO;
+            return;
+        }
+
+        let angle = delta.y.atan2(delta.x);
+        let snapped_angle =
+            (angle / (std::f32::consts::PI / 4.0)).round() * (std::f32::consts::PI / 4.0);
+        let snapped_delta = Vec2::new(snapped_angle.cos(), snapped_angle.sin());
+        joystick_state.delta = snapped_delta.normalize_or_zero();
+    }
 }

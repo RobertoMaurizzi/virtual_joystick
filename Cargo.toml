@@ -33,6 +33,19 @@ default = ["serde"]
 inspect = ["bevy-inspector-egui"]
 serde = ["dep:serde"]
 
+[[example]]
+name = "digital8"
+required-features = ["inspect"]
+
+[[example]]
+name = "joystick_throttle"
+required-features = ["inspect"]
+
+[[example]]
+name = "joystick_cooldown"
+required-features = ["inspect"]
+
+
 [dependencies]
 bevy = { version = "0.18", default-features = false, features = [
  "bevy_render",
